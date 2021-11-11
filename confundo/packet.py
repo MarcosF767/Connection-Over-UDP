@@ -7,7 +7,7 @@ from .header import Header
 class Packet(Header):
     '''Abstraction to handle the whole Confundo packet (e.g., with payload, if present)'''
 
-    def __init__(self, payload=b"", isDup=False, connectionID=0 **kwargs):
+    def __init__(self, payload=b"", isDup=False, connectionID=0, **kwargs):
         super(Packet, self).__init__(**kwargs)
         self.payload = payload
         self.isDup = isDup # only for printing flags

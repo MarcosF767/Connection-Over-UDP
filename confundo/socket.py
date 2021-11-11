@@ -95,7 +95,6 @@ class Socket:
             pkt = self._recv()
             if pkt and pkt.isSyn:
                 hadNewConnId = True
-                ### UPDATE CORRECTLY HERE
                 clientSock = Socket(connectionID = self.connectionID, synReceived=True, sock=self.sock, incomingSequenceNum=pkt.seqNum, noClose=True)
                 # at this point, syn was received, ack for syn was sent, now need to send our SYN and wait for ACK
                 clientSock._connect(self.lastFromAddr)
@@ -188,7 +187,7 @@ class Socket:
 
     def sendSynPacket(self):
         synPkt = Packet(seqNum=self.seqNum, connectionID=self.connectionID, isSyn=True)
-        self.seqNum = 0
+        self.seqNum = self.base
         self._send(synPkt)
 
     def expectSynAck(self):
@@ -206,8 +205,7 @@ class Socket:
 
     def sendFinPacket(self):
         synPkt = Packet(seqNum=self.seqNum, connectionID=self.connectionID, isFin=True)
-        ### UPDATE CORRECTLY HERE
-        ### self.seqNum = ???
+        self.seqNum = self.seqNum + 1
         self._send(synPkt)
 
     def expectFinAck(self):
