@@ -12,16 +12,14 @@ class CwndControl:
         self.ssthresh = INIT_SSTHRESH
 
     def on_ack(self, ackedDataLen):
-        #
-        # IMPLEMENT this and call this method in approprite place inside confundo/socket.py
-        #
-        pass
+        if(self.cwnd < self.ssthresh):
+            self.cwnd += MTU
+        else:
+            self.cwnd += (MTU ** 2) / self.cwnd
 
     def on_timeout(self):
-        #
-        # IMPLEMENT this and call this method in approprite place inside confundo/socket.py
-        #
-        pass
+        self.ssthresh = self.cwnd / 2
+        self.cwnd = MTU
 
     def __str__(self):
         return f"cwnd:{self.cwnd} ssthreash:{self.ssthresh}"
