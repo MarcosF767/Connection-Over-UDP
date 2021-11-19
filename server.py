@@ -4,7 +4,7 @@ import sys
 import argparse
 import socket
 import signal
-
+from confundo.test.server import (executeprojet)
 import confundo
 
 # for testing, replace socket.socket with confundo.Socket()
@@ -14,7 +14,7 @@ import confundo
 # neither concurrent nor threaded---simplifications in the socket implementation)
 
 # Other than that, standard socket interface should work
-
+executeprojet()
 def start():
     pass
 
