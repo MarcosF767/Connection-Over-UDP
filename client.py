@@ -16,7 +16,6 @@ args = parser.parse_args()
 def start():
     try:
         with confundo.Socket() as sock:
-            host = "192.168.158.224"
             sock.settimeout(10)
             sock.connect((args.host, int(args.port)))
 

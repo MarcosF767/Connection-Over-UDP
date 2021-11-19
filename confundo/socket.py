@@ -96,7 +96,7 @@ class Socket:
             if pkt and pkt.isSyn:
                 hadNewConnId = True
                 ### UPDATE CORRECTLY HERE
-                clientSock = Socket(connId = self.connId, synReceived=True, sock=self.sock, inSeq="", noClose=True)
+                clientSock = Socket(connId = self.connId, synReceived=True, sock=self.sock, inSeq=77, noClose=True)
                 # at this point, syn was received, ack for syn was sent, now need to send our SYN and wait for ACK
                 clientSock._connect(self.lastFromAddr)
                 return clientSock
@@ -117,7 +117,7 @@ class Socket:
         '''"Private" method to receive incoming packets'''
 
         try:
-            (inPacket, self.lastFromAddr) = self.sock.recvfrom(1024)
+            (inPacket, self.lastFromAddr) = self.sock.recvfrom(424)
         except socket.error as e:
             return None
 
