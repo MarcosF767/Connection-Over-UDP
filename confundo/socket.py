@@ -26,16 +26,16 @@ class State(Enum):
 class Socket:
     '''Incomplete socket abstraction for Confundo protocol'''
 
-    def __init__(self, connId=0, inSeq=None, synReceived=False, sock=socket.socket(socket.AF_INET, socket.SOCK_DGRAM), noClose=False):
+    def __init__(self, connectionID=0, incomingSequenceNum=None, synReceived=False, sock=socket.socket(socket.AF_INET, socket.SOCK_DGRAM), noClose=False):
         self.sock = sock
-        self.connId = connId
+        self.connectionID = connectionID
         self.sock.settimeout(0.5)
         self.timeout = 10
 
-        self.base = 12345
+        self.base = 77
         self.seqNum = self.base
 
-        self.inSeq = inSeq
+        self.incomingSequenceNum = incomingSequenceNum
 
         self.lastAckTime = time.time() # last time ACK was sent / activity timer
         self.cc = CwndControl()
@@ -60,11 +60,11 @@ class Socket:
             return
         self.sock.close()
 
-    def connect(self, endpoint):
+    def connect(self, endpoint): #endpoint = (host, port)
         remote = socket.getaddrinfo(endpoint[0], endpoint[1], family=socket.AF_INET, type=socket.SOCK_DGRAM)
         (family, type, proto, canonname, sockaddr) = remote[0]
 
-        return self._connect(sockaddr)
+        return self._connect(sockaddr)   #Redirects to _connect
 
     def bind(self, endpoint):
         if self.state != State.INVALID:
@@ -90,18 +90,17 @@ class Socket:
             # just wait forever until a new connection arrives
 
             if hadNewConnId:
-                self.connId += 1 # use it for counting incoming connections, no other uses really
+                self.connectionID += 1 # use it for counting incoming connections, no other uses really
                 hadNewConnId = False
             pkt = self._recv()
             if pkt and pkt.isSyn:
                 hadNewConnId = True
-                ### UPDATE CORRECTLY HERE
-                clientSock = Socket(connId = self.connId, synReceived=True, sock=self.sock, inSeq=77, noClose=True)
+                clientSock = Socket(connectionID = self.connectionID, synReceived=True, sock=self.sock, incomingSequenceNum=pkt.seqNum, noClose=True)
                 # at this point, syn was received, ack for syn was sent, now need to send our SYN and wait for ACK
                 clientSock._connect(self.lastFromAddr)
                 return clientSock
 
-    def settimeout(self, timeout):
+    def settimeout(self, timeout):   #Sets time out
         self.timeout = timeout
 
     def _send(self, packet):
@@ -117,7 +116,7 @@ class Socket:
         '''"Private" method to receive incoming packets'''
 
         try:
-            (inPacket, self.lastFromAddr) = self.sock.recvfrom(424)
+            (inPacket, self.lastFromAddr) = self.sock.recvfrom(1024)
         except socket.error as e:
             return None
 
@@ -128,24 +127,22 @@ class Socket:
 
         outPkt = None
         if inPkt.isSyn:
-            ### UPDATE CORRECTLY HERE
-            ### self.inSeq = ???
-            if inPkt.connId != 0:
-                self.connId = inPkt.connId
+            self.incomingSequenceNum = inPkt.seqNum + 1
+            if inPkt.connectionID != 0:
+                self.connectionID = inPkt.connectionID
             self.synReceived = True
 
-            outPkt = Packet(seqNum=self.seqNum, ackNum=self.inSeq, connId=self.connId, isAck=True)
+            outPkt = Packet(seqNum=self.seqNum, ackNum=self.incomingSequenceNum, connectionID=self.connectionID, isAck=True)
 
         elif inPkt.isFin:
-            if self.inSeq == inPkt.seqNum: # all previous packets has been received, so safe to advance
-                ### UPDATE CORRECTLY HERE
-                ### self.inSeq = ???
+            if self.incomingSequenceNum == inPkt.seqNum: # all previous packets has been received, so safe to advance
+                self.incomingSequenceNum = self.incomingSequenceNum + 1
                 self.finReceived = True
             else:
                 # don't advance, which means we will send a duplicate ACK
                 pass
 
-            outPkt = Packet(seqNum=self.seqNum, ackNum=self.inSeq, connId=self.connId, isAck=True)
+            outPkt = Packet(seqNum=self.seqNum, ackNum=self.incomingSequenceNum, connectionID=self.connectionID, isAck=True)
 
         elif len(inPkt.payload) > 0:
             if not self.synReceived:
@@ -154,15 +151,14 @@ class Socket:
             if self.finReceived:
                 raise RuntimeError("Received data after getting FIN (incoming connection closed)")
 
-            if self.inSeq == inPkt.seqNum: # all previous packets has been received, so safe to advance
-                ### UPDATE CORRECTLY HERE
-                ### self.inSeq = ???
+            if self.incomingSequenceNum == inPkt.seqNum: # all previous packets has been received, so safe to advance
+                self.incomingSequenceNum = inPkt.seqNum
                 self.inBuffer += inPkt.payload
             else:
                 # don't advance, which means we will send a duplicate ACK
                 pass
 
-            outPkt = Packet(seqNum=self.seqNum, ackNum=self.inSeq, connId=self.connId, isAck=True)
+            outPkt = Packet(seqNum=self.seqNum, ackNum=self.incomingSequenceNum, connectionID=self.connectionID, isAck=True)
 
         if outPkt:
             self._send(outPkt)
@@ -175,10 +171,10 @@ class Socket:
         if self.state != State.INVALID:
             raise RuntimeError("Trying to connect, but socket is already opened")
 
-        self.sendSynPacket()
+        self.sendSynPacket()   #Sends Syn for connecting
         self.state = State.SYN
 
-        self.expectSynAck()
+        self.expectSynAck()    #Expects Ack back
 
     def close(self):
         if self.state != State.OPEN:
@@ -190,9 +186,8 @@ class Socket:
         self.expectFinAck()
 
     def sendSynPacket(self):
-        synPkt = Packet(seqNum=self.seqNum, connId=self.connId, isSyn=True)
-        ### UPDATE CORRECTLY HERE
-        ### self.seqNum = ???
+        synPkt = Packet(seqNum=self.seqNum, connectionID=self.connectionID, isSyn=True)
+        self.seqNum = self.base
         self._send(synPkt)
 
     def expectSynAck(self):
@@ -209,9 +204,8 @@ class Socket:
                 raise RuntimeError("timeout")
 
     def sendFinPacket(self):
-        synPkt = Packet(seqNum=self.seqNum, connId=self.connId, isFin=True)
-        ### UPDATE CORRECTLY HERE
-        ### self.seqNum = ???
+        synPkt = Packet(seqNum=self.seqNum, connectionID=self.connectionID, isFin=True)
+        self.seqNum = self.seqNum + 1
         self._send(synPkt)
 
     def expectFinAck(self):
@@ -261,7 +255,7 @@ class Socket:
         startTime = time.time()
         while len(self.outBuffer) > 0:
             toSend = self.outBuffer[:MTU]
-            pkt = Packet(seqNum=self.base, connId=self.connId, payload=toSend)
+            pkt = Packet(seqNum=self.base, connectionID=self.connectionID, payload=toSend)
             ### UPDATE CORRECTLY HERE
             ### self.seqNum = ???
             self._send(pkt)
