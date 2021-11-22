@@ -186,8 +186,8 @@ class Socket:
         self.expectFinAck()
 
     def sendSynPacket(self):
-        synPkt = Packet(seqNum=77, connectionID=self.connectionID, isSyn=True)
-        self.seqNum = 78
+        synPkt = Packet(seqNum=self.base, connectionID=self.connectionID, isSyn=True)
+        self.seqNum = self.base + 1
         self._send(synPkt)
 
     def expectSynAck(self):
@@ -256,22 +256,19 @@ class Socket:
         while len(self.outBuffer) > 0:
             toSend = self.outBuffer[:MTU]
             pkt = Packet(seqNum=self.base, connectionID=self.connectionID, payload=toSend)
-            ### UPDATE CORRECTLY HERE
-            ### self.seqNum = ???
+            self.seqNum = self.seqNum + 412 + 20
             self._send(pkt)
 
             pkt = self._recv()  # if within RTO we didn't receive packets, things will be retransmitted
             if pkt and pkt.isAck:
-                ### UPDATE CORRECTLY HERE
-                # advanceAmount = ???
+                advanceAmount = pkt.ackNum - self.base
                 if advanceAmount == 0:
                     self.nDupAcks += 1
                 else:
                     self.nDupAcks = 0
 
                 self.outBuffer = self.outBuffer[advanceAmount:]
-                ### UPDATE CORRECTLY HERE
-                ### self.base = ???
+                self.base += advanceAmmount
 
             if time.time() - startTime > GLOBAL_TIMEOUT:
                 self.state = State.ERROR
