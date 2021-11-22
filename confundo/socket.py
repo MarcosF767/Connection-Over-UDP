@@ -110,7 +110,7 @@ class Socket:
             self.sock.sendto(packet.encode(), self.remote)
         else:
             self.sock.sendto(packet.encode(), self.lastFromAddr)
-        print(format_line("SEND", packet, -1, -1))
+        print(format_line("SEND",  inPkt.seqNum, inPkt.ackNum, inPkt.connId))
 
     def _recv(self):
         '''"Private" method to receive incoming packets'''
@@ -123,7 +123,7 @@ class Socket:
         ### TODO dispatch based on fromAddr... and it can only be done from the "parent" socket
 
         inPkt = Packet().decode(inPacket)
-        print(format_line("RECV", inPkt, -1, -1))
+        print(format_line("RECV", inPkt.seqNum, inPkt.ackNum, inPkt.connId))
 
         outPkt = None
         if inPkt.isSyn:
@@ -261,14 +261,14 @@ class Socket:
 
             pkt = self._recv()  # if within RTO we didn't receive packets, things will be retransmitted
             if pkt and pkt.isAck:
-                advanceAmount = pkt.ackNum - self.base
+                advanceAmount = pkt.inSeq - self.base
                 if advanceAmount == 0:
                     self.nDupAcks += 1
                 else:
                     self.nDupAcks = 0
 
                 self.outBuffer = self.outBuffer[advanceAmount:]
-                self.base += advanceAmmount
+                self.base += advanceAmount
 
             if time.time() - startTime > GLOBAL_TIMEOUT:
                 self.state = State.ERROR
