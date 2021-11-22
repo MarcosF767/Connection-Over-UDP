@@ -268,7 +268,7 @@ class Socket:
                     self.nDupAcks = 0
 
                 self.outBuffer = self.outBuffer[advanceAmount:]
-                self.base += advanceAmount
+                self.base = self.seqNum
 
             if time.time() - startTime > GLOBAL_TIMEOUT:
                 self.state = State.ERROR
