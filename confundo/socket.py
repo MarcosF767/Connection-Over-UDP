@@ -186,8 +186,8 @@ class Socket:
         self.expectFinAck()
 
     def sendSynPacket(self):
-        synPkt = Packet(seqNum=self.seqNum, connectionID=self.connectionID, isSyn=True)
-        self.seqNum = self.base
+        synPkt = Packet(seqNum=77, connectionID=self.connectionID, isSyn=True)
+        self.seqNum = 78
         self._send(synPkt)
 
     def expectSynAck(self):
