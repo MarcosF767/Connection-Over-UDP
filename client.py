@@ -106,7 +106,7 @@ def start():
             sock.sendto(packet.encode(), remoteAddr)
         else:
             sock.sendto(packet.encode(), lastFromAddr)
-        print(format_line("SEND",  packet, cwnd.cwnd, cwnd.ssthresh))
+        print(format_line("SEND",  packet, -1, -1))
         
     def recieve():
         try:
@@ -129,7 +129,7 @@ def start():
             return None
 
         inPkt = Packet().decode(inPacket)
-        print(format_line("RECV", inPkt, cwnd.cwnd, cwnd.ssthresh))
+        print(format_line("RECV", inPkt, -1, -1))
 
         outPkt = None
         if inPkt.isSyn:
