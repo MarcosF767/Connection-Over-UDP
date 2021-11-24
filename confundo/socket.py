@@ -29,13 +29,14 @@ class Socket:
     def __init__(self, connectionID=0, inSeq=None, synReceived=False, sock=socket.socket(socket.AF_INET, socket.SOCK_DGRAM), noClose=False):
         self.sock = sock
         self.connectionID = connectionID
-        self.sock.settimeout(0.5)
         self.timeout = 10
 
         self.base = 77
         self.seqNum = self.base
 
         self.inSeq = inSeq
+        
+        self.sock.settimeout(0.5)
 
         self.lastAckTime = time.time() # last time ACK was sent / activity timer
         self.cc = CwndControl()
@@ -66,7 +67,7 @@ class Socket:
 
         return self._connect(sockaddr)   #Redirects to _connect
 
-    def bind(self, endpoint):
+'''    def bind(self, endpoint):
         if self.state != State.INVALID:
             raise RuntimeError()
 
@@ -99,6 +100,7 @@ class Socket:
                 # at this point, syn was received, ack for syn was sent, now need to send our SYN and wait for ACK
                 clientSock._connect(self.lastFromAddr)
                 return clientSock
+'''
 
     def settimeout(self, timeout):   #Sets time out
         self.timeout = timeout
@@ -110,7 +112,7 @@ class Socket:
             self.sock.sendto(packet.encode(), self.remote)
         else:
             self.sock.sendto(packet.encode(), self.lastFromAddr)
-        print(format_line("SEND",  inPkt.seqNum, inPkt.ackNum, inPkt.connId))
+        print(format_line("SEND",  packet))
 
     def _recv(self):
         '''"Private" method to receive incoming packets'''
@@ -123,11 +125,11 @@ class Socket:
         ### TODO dispatch based on fromAddr... and it can only be done from the "parent" socket
 
         inPkt = Packet().decode(inPacket)
-        print(format_line("RECV", inPkt.seqNum, inPkt.ackNum, inPkt.connId))
+        print(format_line("RECV", packet))
 
         outPkt = None
         if inPkt.isSyn:
-            self.inSeq = inPkt.seqNum + 1
+            self.inSeq = inPkt.seqNum
             if inPkt.connectionID != 0:
                 self.connectionID = inPkt.connectionID
             self.synReceived = True
