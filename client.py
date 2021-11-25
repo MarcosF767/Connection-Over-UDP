@@ -171,7 +171,7 @@ def start():
         return (inPkt, lastFromAddr, connId, seqNum, inSeq, synReceived, finReceived, inBuffer)
             
 
-    def sendData(data, base, seqNum, outBuffer, connId, lastFromAddr, inSeq, synReceived, finReceived, inBuffer):
+    def sendData(data, base, seqNum, outBuffer, connId, lastFromAddr, inSeq, synReceived, finReceived, inBuffer, cwnd):
         '''
         This is one of the methods that require fixes.  Besides the marked place where you need
         to figure out proper updates (to make basic transfer work), this method is the place
@@ -186,8 +186,6 @@ def start():
         startTime = time.time()
         while len(outBuffer) > 0:
             toSend = outBuffer[:MTU]
-            if(seqNum +  len(toSend)>= 40000):
-                seqNum = 0
             pkt = Packet(seqNum=base, connId=connId, payload=toSend)
             seqNum += len(toSend)
             send(pkt, remoteAddr, lastFromAddr)
@@ -207,7 +205,11 @@ def start():
             if time.time() - startTime > GLOBAL_TIMEOUT:
                 raise RuntimeError("timeout")
 
-        return (len(data), base, seqNum, outBuffer, connId, lastFromAddr, inSeq, synReceived, finReceived, inBuffer)
+        return (len(data), base, seqNum, outBuffer, connId, lastFromAddr, inSeq, synReceived, finReceived, inBuffer, cwnd)
+            
+            
+            
+            
             
             
             
@@ -218,6 +220,7 @@ def start():
     try:
         sock=socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
 
+        sock.settimeout(10)
         remote = socket.getaddrinfo(HOST, PORT, family=socket.AF_INET, type=socket.SOCK_DGRAM)
         (family, type, proto, canonname, sockaddr) = remote[0]
 
@@ -246,7 +249,7 @@ def start():
             while data:
                 total_sent = 0
                 while total_sent < len(data):
-                    (sent, base, seqNum, outBuffer, connId, lastFromAddr, inSeq, synReceived, finReceived, inBuffer) = sendData(data[total_sent:], base, seqNum, outBuffer, connId, lastFromAddr, inSeq, synReceived, finReceived, inBuffer)
+                    (sent, base, seqNum, outBuffer, connId, lastFromAddr, inSeq, synReceived, finReceived, inBuffer, cwnd) = sendData(data[total_sent:], base, seqNum, outBuffer, connId, lastFromAddr, inSeq, synReceived, finReceived, inBuffer, cwnd)
                     total_sent += sent
                     data = f.read(50000)
         
@@ -269,7 +272,7 @@ def start():
         
         
     except:
-        sys.stderr.write(f"ERROR:")
+        sys.stderr.write(f"ERROR")
         sys.exit(1)
     finally:
         sock.close()
