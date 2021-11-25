@@ -3,7 +3,6 @@
 #
 
 from .common import *
-from .packet import Packets
 from .socket import Sockets
 from .util import *
 

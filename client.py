@@ -12,7 +12,7 @@ class Packet():
         self.isFin = isFin
         self.payload = payload
         self.isDup = isDup # only for printing flags
-        self.connectionID = connectionID
+        self.connId = connId
 
     def decode(self, fullPacket):
         (self.seqNum, self.ackNum, self.connId, flags) = struct.unpack("!IIHH", fullPacket[0:12])
@@ -58,6 +58,7 @@ class CwndControl:
     def __str__(self):
         return f"cwnd:{self.cwnd} ssthreash:{self.ssthresh}"
 
+
     
     
     
@@ -74,8 +75,7 @@ import argparse
 import os
 import socket
 import sys
-
-import confundo
+import time
 
 parser = argparse.ArgumentParser("Parser")
 parser.add_argument("host", help="Set Hostname")
@@ -87,32 +87,31 @@ PORT = args.port
 HOST = args.host
 FILE = args.file
 GLOBAL_TIMEOUT = 10.0
+MTU=412
+
 
 def start():
     
     remoteAddr = 0
     lastFromAddr = 0
     connId = 0
-    seqNum = 77
+    base = 77
+    seqNum = base
     inSeq = 0
     synReceived = False
     finReceived = False
     inBuffer = b""
+    outBuffer = b""
     cwnd = CwndControl()
     
     '''***********************************************************************'''
-    def send(packet):
+    def send(packet, remoteAddr, lastFromAddr):
         if remoteAddr:
             sock.sendto(packet.encode(), remoteAddr)
         else:
             sock.sendto(packet.encode(), lastFromAddr)
-        print(format_line("SEND",  packet, -1, -1))
+        print(format_line("SEND",  packet, cwnd.cwnd, cwnd.ssthresh))
         
-    def recieve():
-        try:
-            (inPacket, lastFromAddr) = self.sock.recvfrom(1024)
-        except socket.error as e:
-            return None
         
     def format_line(command, pkt, cwnd, ssthresh):
         s = f"{command} {pkt.seqNum} {pkt.ackNum} {pkt.connId} {int(cwnd)} {ssthresh}"
@@ -122,14 +121,14 @@ def start():
         if pkt.isDup: s = s + " DUP"
         return s
     
-    def recv():
+    def recv(lastFromAddr, connId, seqNum, inSeq, synReceived, finReceived, inBuffer):
         try:
             (inPacket, lastFromAddr) = sock.recvfrom(1024)
         except socket.error as e:
             return None
 
         inPkt = Packet().decode(inPacket)
-        print(format_line("RECV", inPkt, -1, -1))
+        print(format_line("RECV", inPkt, cwnd.cwnd, cwnd.ssthresh))
 
         outPkt = None
         if inPkt.isSyn:
@@ -167,55 +166,111 @@ def start():
             outPkt = Packet(seqNum=seqNum, ackNum=inSeq, connId=connId, isAck=True)
 
         if outPkt:
-            self._send(outPkt)
+            send(outPkt, remoteAddr, lastFromAddr)
 
-        return inPkt
+        return (inPkt, lastFromAddr, connId, seqNum, inSeq, synReceived, finReceived, inBuffer)
             
 
-    
+    def sendData(data, base, seqNum, outBuffer, connId, lastFromAddr, inSeq, synReceived, finReceived, inBuffer):
+        '''
+        This is one of the methods that require fixes.  Besides the marked place where you need
+        to figure out proper updates (to make basic transfer work), this method is the place
+        where you should initate congestion control operations.   You can either directly update cwnd, ssthresh,
+        and anything else you need or use CwndControl class, up to you.  There isn't any skeleton code for the
+        congestion control operations.  You would need to update things here and in `format_msg` calls
+        in this file to properly print values.
+        '''
+
+        outBuffer += data
+
+        startTime = time.time()
+        while len(outBuffer) > 0:
+            toSend = outBuffer[:MTU]
+            pkt = Packet(seqNum=base, connId=connId, payload=toSend)
+            seqNum += len(toSend)
+            send(pkt, remoteAddr, lastFromAddr)
+
+            (pkt, lastFromAddr, connId, seqNum, inSeq, synReceived, finReceived, inBuffer) = recv(lastFromAddr, connId, seqNum, inSeq, synReceived, finReceived, inBuffer)  
+                    # if within RTO we didn't receive packets, things will be retransmitted
+            if pkt and pkt.isAck:
+                advanceAmount = pkt.ackNum - base
+                if advanceAmount == 0:
+                    nDupAcks += 1
+                else:
+                    nDupAcks = 0
+
+                outBuffer = outBuffer[advanceAmount:]
+                base = seqNum
+
+            if time.time() - startTime > GLOBAL_TIMEOUT:
+                raise RuntimeError("timeout")
+
+        return (len(data), base, seqNum, outBuffer, connId, lastFromAddr, inSeq, synReceived, finReceived, inBuffer)
             
             
             
             
             
-    
-    sock=socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
-    
-    remote = socket.getaddrinfo(HOST, PORT, family=socket.AF_INET, type=socket.SOCK_DGRAM)
-    (family, type, proto, canonname, sockaddr) = remote[0]
-    
-    remoteAddr = sockaddr
+            
+            
+    try:
+        sock=socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+
+        remote = socket.getaddrinfo(HOST, PORT, family=socket.AF_INET, type=socket.SOCK_DGRAM)
+        (family, type, proto, canonname, sockaddr) = remote[0]
+
+        remoteAddr = sockaddr
 
 
-    #self.sendSynPacket()
-    synPkt = Packet(seqNum=seqNum, connId=connId, isSyn=True)
-    seqNum = seqNum + 1
-    send(synPkt)
+        #self.sendSynPacket()
+        synPkt = Packet(seqNum=seqNum, connId=connId, isSyn=True)
+        seqNum = seqNum + 1
+        send(synPkt, remoteAddr, lastFromAddr)
 
-    #self.expectSynAck()
-    startTime = time.time()
-    while True:
-        pkt = recv()
-        if pkt and pkt.isAck and pkt.ackNum == self.seqNum:
-            self.base = self.seqNum
-            self.state = State.OPEN
-            break
-        if time.time() - startTime > GLOBAL_TIMEOUT:
-            self.state = State.ERROR
-            raise RuntimeError("timeout")
-            
-            
-    with open(FILE, "rb") as f:
-        data = f.read(50000)
-        while data:
-            total_sent = 0
-            while total_sent < len(data):
-                sent = sendData(data[total_sent:])
-                total_sent += sent
-                data = f.read(50000)
-    except RuntimeError as e:
-        sys.stderr.write(f"ERROR: {e}\n")
+        #self.expectSynAck()
+        startTime = time.time()
+        while True:
+            print(seqNum)
+            (pkt, lastFromAddr, connId, seqNum, inSeq, synReceived, finReceived, inBuffer) = recv(lastFromAddr, connId, seqNum, inSeq, synReceived, finReceived, inBuffer)
+            if pkt and pkt.isAck and pkt.ackNum == seqNum:
+                base = seqNum
+                break
+            if time.time() - startTime > GLOBAL_TIMEOUT:
+                raise RuntimeError("timeout")
+
+        #Send files
+        with open(FILE, "rb") as f:
+            data = f.read(50000)
+            while data:
+                total_sent = 0
+                while total_sent < len(data):
+                    (sent, base, seqNum, outBuffer, connId, lastFromAddr, inSeq, synReceived, finReceived, inBuffer) = sendData(data[total_sent:], base, seqNum, outBuffer, connId, lastFromAddr, inSeq, synReceived, finReceived, inBuffer)
+                    total_sent += sent
+                    data = f.read(50000)
+        
+        #self.sendFinPacket()
+        synPkt = Packet(seqNum=seqNum, connId=connId, isFin=True)
+        seqNum += 1
+        send(synPkt, remoteAddr, lastFromAddr)
+        
+        
+        
+        #self.expectFinAck()
+        startTime = time.time()
+        while True:
+            (pkt, lastFromAddr, connId, seqNum, inSeq, synReceived, finReceived, inBuffer) = recv(lastFromAddr, connId, seqNum, inSeq, synReceived, finReceived, inBuffer)
+            if pkt and pkt.isAck and pkt.ackNum == seqNum:
+                base = seqNum
+                break
+            if time.time() - startTime > GLOBAL_TIMEOUT:
+                return
+        
+        
+    except:
+        sys.stderr.write(f"ERROR:")
         sys.exit(1)
+    finally:
+        sock.close()
     
     '''************************************************************************'''
     
