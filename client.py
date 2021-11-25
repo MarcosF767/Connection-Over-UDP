@@ -98,6 +98,8 @@ def start():
     base = 77
     seqNum = base
     inSeq = 0
+    inAck = 0
+    nDupAcks = 0
     synReceived = False
     finReceived = False
     inBuffer = b""
@@ -121,13 +123,14 @@ def start():
         if pkt.isDup: s = s + " DUP"
         return s
     
-    def recv(lastFromAddr, connId, seqNum, inSeq, synReceived, finReceived, inBuffer):
+    def recv(lastFromAddr, connId, seqNum, inSeq, inAck, synReceived, finReceived, inBuffer):
         try:
             (inPacket, lastFromAddr) = sock.recvfrom(1024)
         except socket.error as e:
             return None
 
         inPkt = Packet().decode(inPacket)
+        inAck = inPkt.ackNum    ##########################################
         print(format_line("RECV", inPkt, cwnd.cwnd, cwnd.ssthresh))
 
         outPkt = None
@@ -168,10 +171,10 @@ def start():
         if outPkt:
             send(outPkt, remoteAddr, lastFromAddr)
 
-        return (inPkt, lastFromAddr, connId, seqNum, inSeq, synReceived, finReceived, inBuffer)
+        return (inPkt, lastFromAddr, connId, seqNum, inSeq, inAck, synReceived, finReceived, inBuffer)
             
 
-    def sendData(data, base, seqNum, outBuffer, connId, lastFromAddr, inSeq, synReceived, finReceived, inBuffer, cwnd):
+    def sendData(data, base, seqNum, outBuffer, connId, lastFromAddr, inSeq, inAck, synReceived, finReceived, inBuffer, nDupAcks, cwnd):
         '''
         This is one of the methods that require fixes.  Besides the marked place where you need
         to figure out proper updates (to make basic transfer work), this method is the place
@@ -190,7 +193,7 @@ def start():
             seqNum += len(toSend)
             send(pkt, remoteAddr, lastFromAddr)
 
-            (pkt, lastFromAddr, connId, seqNum, inSeq, synReceived, finReceived, inBuffer) = recv(lastFromAddr, connId, seqNum, inSeq, synReceived, finReceived, inBuffer)  
+            (pkt, lastFromAddr, connId, seqNum, inSeq, inAck, synReceived, finReceived, inBuffer) = recv(lastFromAddr, connId, seqNum, inSeq, inAck, synReceived, finReceived, inBuffer)  
                     # if within RTO we didn't receive packets, things will be retransmitted
             if pkt and pkt.isAck:
                 advanceAmount = pkt.ackNum - base
@@ -205,7 +208,7 @@ def start():
             if time.time() - startTime > GLOBAL_TIMEOUT:
                 raise RuntimeError("timeout")
 
-        return (len(data), base, seqNum, outBuffer, connId, lastFromAddr, inSeq, synReceived, finReceived, inBuffer, cwnd)
+        return (len(data), base, seqNum, outBuffer, connId, lastFromAddr, inSeq, inAck, synReceived, finReceived, inBuffer, nDupAcks, cwnd)
             
             
             
@@ -235,8 +238,7 @@ def start():
         #self.expectSynAck()
         startTime = time.time()
         while True:
-            print(seqNum)
-            (pkt, lastFromAddr, connId, seqNum, inSeq, synReceived, finReceived, inBuffer) = recv(lastFromAddr, connId, seqNum, inSeq, synReceived, finReceived, inBuffer)
+            (pkt, lastFromAddr, connId, seqNum, inSeq, inAck, synReceived, finReceived, inBuffer) = recv(lastFromAddr, connId, seqNum, inSeq, inAck, synReceived, finReceived, inBuffer)
             if pkt and pkt.isAck and pkt.ackNum == seqNum:
                 base = seqNum
                 break
@@ -249,7 +251,7 @@ def start():
             while data:
                 total_sent = 0
                 while total_sent < len(data):
-                    (sent, base, seqNum, outBuffer, connId, lastFromAddr, inSeq, synReceived, finReceived, inBuffer, cwnd) = sendData(data[total_sent:], base, seqNum, outBuffer, connId, lastFromAddr, inSeq, synReceived, finReceived, inBuffer, cwnd)
+                    (sent, base, seqNum, outBuffer, connId, lastFromAddr, inSeq, inAck, synReceived, finReceived, inBuffer, nDupAcks, cwnd) = sendData(data[total_sent:], base, seqNum, outBuffer, connId, lastFromAddr, inSeq, inAck, synReceived, finReceived, inBuffer, nDupAcks, cwnd)
                     total_sent += sent
                     data = f.read(50000)
         
@@ -263,7 +265,7 @@ def start():
         #self.expectFinAck()
         startTime = time.time()
         while True:
-            (pkt, lastFromAddr, connId, seqNum, inSeq, synReceived, finReceived, inBuffer) = recv(lastFromAddr, connId, seqNum, inSeq, synReceived, finReceived, inBuffer)
+            (pkt, lastFromAddr, connId, seqNum, inSeq, inAck, synReceived, finReceived, inBuffer) = recv(lastFromAddr, connId, seqNum, inSeq, inAck, synReceived, finReceived, inBuffer)
             if pkt and pkt.isAck and pkt.ackNum == seqNum:
                 base = seqNum
                 break
