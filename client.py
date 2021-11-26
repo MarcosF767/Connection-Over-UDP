@@ -188,7 +188,8 @@ def start():
             for pk in range(0,(math.floor(cwnd.cwnd/MTU))):
                 toSend = outBuffer[(pk*MTU):((pk+1)*MTU)]
                 if((seqNum+len(toSend)) > 40000):
-                    seqNum = 77
+                    seqNum = 0
+                    base = 0
                 pkt = Packet(seqNum=seqNum, connId=connId, payload=toSend)
                 if(base == seqNum):
                     seqNum += len(toSend)
