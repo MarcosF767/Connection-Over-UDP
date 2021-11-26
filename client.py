@@ -189,7 +189,9 @@ def start():
         startTime = time.time()
         while len(outBuffer) > 0:
             toSend = outBuffer[:MTU]
-            pkt = Packet(seqNum=base, connId=connId, payload=toSend)
+            if((seqNum+len(toSend)) > 40000):
+                seqNum = 0
+            pkt = Packet(seqNum=seqNum, connId=connId, payload=toSend)
             seqNum += len(toSend)
             send(pkt, remoteAddr, lastFromAddr)
 
