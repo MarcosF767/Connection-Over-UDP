@@ -102,6 +102,7 @@ def start():
     inBuffer = b""
     outBuffer = b""
     cwnd = CwndControl()
+    endedAt = 0
     
     '''***********************************************************************'''
     def send(packet, remoteAddr, lastFromAddr):
@@ -171,7 +172,7 @@ def start():
         return (inPkt, lastFromAddr, connId, seqNum, inSeq, inAck, synReceived, finReceived, inBuffer)
             
 
-    def sendData(data, base, seqNum, outBuffer, connId, lastFromAddr, inSeq, inAck, synReceived, finReceived, inBuffer, nDupAcks, cwnd):
+    def sendData(data, base, seqNum, outBuffer, connId, lastFromAddr, inSeq, inAck, synReceived, finReceived, inBuffer, nDupAcks, cwnd, endedAt):
         '''
         This is one of the methods that require fixes.  Besides the marked place where you need
         to figure out proper updates (to make basic transfer work), this method is the place
@@ -187,11 +188,13 @@ def start():
         while len(outBuffer) > 0:
             for pk in range(0,(math.floor(cwnd.cwnd/MTU))):
                 toSend = outBuffer[(pk*MTU):((pk+1)*MTU)]
+                
                 if((seqNum+len(toSend)) > 40000):
                     seqNum = 0
+                    endedAt = base
                     base = 0
                 pkt = Packet(seqNum=seqNum, connId=connId, payload=toSend)
-                if(base == seqNum):
+                if((base) == seqNum):
                     seqNum += len(toSend)
                 send(pkt, remoteAddr, lastFromAddr)
 
@@ -209,7 +212,7 @@ def start():
             if time.time() - startTime > GLOBAL_TIMEOUT:
                 raise RuntimeError("timeout")
 
-        return (len(data), base, seqNum, outBuffer, connId, lastFromAddr, inSeq, inAck, synReceived, finReceived, inBuffer, nDupAcks, cwnd)
+        return (len(data), base, seqNum, outBuffer, connId, lastFromAddr, inSeq, inAck, synReceived, finReceived, inBuffer, nDupAcks, cwnd, endedAt)
             
             
             
@@ -252,7 +255,7 @@ def start():
             while data:
                 total_sent = 0
                 while total_sent < len(data):
-                    (sent, base, seqNum, outBuffer, connId, lastFromAddr, inSeq, inAck, synReceived, finReceived, inBuffer, nDupAcks, cwnd) = sendData(data[total_sent:], base, seqNum, outBuffer, connId, lastFromAddr, inSeq, inAck, synReceived, finReceived, inBuffer, nDupAcks, cwnd)
+                    (sent, base, seqNum, outBuffer, connId, lastFromAddr, inSeq, inAck, synReceived, finReceived, inBuffer, nDupAcks, cwnd, endedAt) = sendData(data[total_sent:], base, seqNum, outBuffer, connId, lastFromAddr, inSeq, inAck, synReceived, finReceived, inBuffer, nDupAcks, cwnd, endedAt)
                     total_sent += sent
                     data = f.read(50000)
         
