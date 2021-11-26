@@ -274,16 +274,18 @@ def start():
                 return
         now = time.time()
         while True:
-            (inPacket, lastFromAddr) = sock.recvfrom(1024)
-            inPkt = Packet().decode(inPacket)
+            try:
+                (inPacket, lastFromAddr) = sock.recvfrom(1024)
+                inPkt = Packet().decode(inPacket)
+            except:
+                inPkt = None
             if inPkt and inPkt.isFin and pkt.ackNum == seqNum:
                 print(format_line("RECV", inPkt, cwnd.cwnd, cwnd.ssthresh))
                 pak = Packet(seqNum=seqNum, ackNum=inSeq, connId=connId, isAck=True)
                 send(pak, remoteAddr, lastFromAddr)
-                break
             elif inPkt:
                 print(format_line("DROP", inPkt, cwnd.cwnd, cwnd.ssthresh))
-            if((time.time()) - now >= 2):
+            if((time.time()) - now >= 5):
                 break
         
         
