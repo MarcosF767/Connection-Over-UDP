@@ -188,12 +188,13 @@ def start():
 
         startTime = time.time()
         while len(outBuffer) > 0:
-            toSend = outBuffer[:MTU]
-            if((seqNum+len(toSend)) > 40000):
-                seqNum = 0
-            pkt = Packet(seqNum=seqNum, connId=connId, payload=toSend)
-            seqNum += len(toSend)
-            send(pkt, remoteAddr, lastFromAddr)
+            for pk in range(0,(math.floor(cwnd.cwnd/MTU))):
+                toSend = outBuffer[(pk*MTU):((pk+1)*MTU)]
+                if((seqNum+len(toSend)) > 40000):
+                    seqNum = 77
+                pkt = Packet(seqNum=seqNum, connId=connId, payload=toSend)
+                seqNum += len(toSend)
+                send(pkt, remoteAddr, lastFromAddr)
 
             (pkt, lastFromAddr, connId, seqNum, inSeq, inAck, synReceived, finReceived, inBuffer) = recv(lastFromAddr, connId, seqNum, inSeq, inAck, synReceived, finReceived, inBuffer)  
                     # if within RTO we didn't receive packets, things will be retransmitted
@@ -268,11 +269,23 @@ def start():
         startTime = time.time()
         while True:
             (pkt, lastFromAddr, connId, seqNum, inSeq, inAck, synReceived, finReceived, inBuffer) = recv(lastFromAddr, connId, seqNum, inSeq, inAck, synReceived, finReceived, inBuffer)
-            if pkt and pkt.isAck and pkt.ackNum == seqNum:
                 base = seqNum
                 break
             if time.time() - startTime > GLOBAL_TIMEOUT:
                 return
+        now = time.time()
+        while True:
+            (inPacket, lastFromAddr) = sock.recvfrom(1024)
+            inPkt = Packet().decode(inPacket)
+            if inPkt and inPkt.isFin and pkt.ackNum == seqNum:
+                print(format_line("RECV", inPkt, cwnd.cwnd, cwnd.ssthresh))
+                pak = Packet(seqNum=seqNum, ackNum=inSeq, connId=connId, isAck=True)
+                send(pak, remoteAddr, lastFromAddr)
+                break
+            elif inPkt:
+                print(format_line("DROP", inPkt, cwnd.cwnd, cwnd.ssthresh))
+            if((time.time()) - now >= 2):
+                break
         
         
     except:
