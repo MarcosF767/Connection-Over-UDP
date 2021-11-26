@@ -269,6 +269,7 @@ def start():
         startTime = time.time()
         while True:
             (pkt, lastFromAddr, connId, seqNum, inSeq, inAck, synReceived, finReceived, inBuffer) = recv(lastFromAddr, connId, seqNum, inSeq, inAck, synReceived, finReceived, inBuffer)
+            if pkt and pkt.isAck and pkt.ackNum == seqNum:
                 base = seqNum
                 break
             if time.time() - startTime > GLOBAL_TIMEOUT:
