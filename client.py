@@ -76,6 +76,7 @@ import os
 import socket
 import sys
 import time
+import math
 
 parser = argparse.ArgumentParser("Parser")
 parser.add_argument("host", help="Set Hostname")
@@ -88,6 +89,8 @@ HOST = args.host
 FILE = args.file
 GLOBAL_TIMEOUT = 10.0
 MTU=412
+
+
 
 
 def start():
