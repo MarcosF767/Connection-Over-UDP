@@ -155,11 +155,13 @@ def start():
         elif len(inPkt.payload) > 0:
             if not synReceived:
                 raise RuntimeError("Receiving data before SYN received")
-                exit(1)
+                sys.stderr.write("Receiving data before SYN received")
+                sys.exit(1)
 
             if finReceived:
                 raise RuntimeError("Received data after getting FIN (incoming connection closed)")
-                exit(1)
+                sys.stderr.write("Received data after getting FIN (incoming connection closed)")
+                sys.exit(1)
 
             if inSeq == inPkt.seqNum: # all previous packets has been received, so safe to advance
                 inSeq += len(inPkt.payload)
@@ -193,7 +195,7 @@ def start():
             for pk in range(0,(math.floor(cwnd.cwnd/MTU))):
                 toSend = outBuffer[(pk*MTU):((pk+1)*MTU)]
                 
-                if((seqNum+len(toSend)) > 40000):
+                if((seqNum+len(toSend)) > 4000):
                     seqNum = 0
                     endedAt += base
                     base = 0
@@ -205,11 +207,12 @@ def start():
             (pkt, lastFromAddr, connId, seqNum, inSeq, inAck, synReceived, finReceived, inBuffer) = recv(lastFromAddr, connId, seqNum, inSeq, inAck, synReceived, finReceived, inBuffer)  
                     # if within RTO we didn't receive packets, things will be retransmitted
             if pkt and pkt.isAck:
-                advanceAmount = pkt.ackNum - base - endedAt
+                advanceAmount = pkt.ackNum - base################# - endedAt
                 if advanceAmount == 0:
                     nDupAcks += 1
                 else:
                     nDupAcks = 0
+                    startTime = time.time()
 
                 outBuffer = outBuffer[advanceAmount:]
                 base = seqNum
@@ -299,7 +302,7 @@ def start():
         
         
     except:
-        sys.stderr.write(f"ERROR")
+        sys.stderr.write(f"ERROR: File transfer failed")
         sys.exit(1)
     finally:
         sock.close()
