@@ -155,9 +155,11 @@ def start():
         elif len(inPkt.payload) > 0:
             if not synReceived:
                 raise RuntimeError("Receiving data before SYN received")
+                exit(1)
 
             if finReceived:
                 raise RuntimeError("Received data after getting FIN (incoming connection closed)")
+                exit(1)
 
             if inSeq == inPkt.seqNum: # all previous packets has been received, so safe to advance
                 inSeq += len(inPkt.payload)
@@ -213,6 +215,8 @@ def start():
                 base = seqNum
             if time.time() - startTime > GLOBAL_TIMEOUT:
                 raise RuntimeError("timeout")
+                sock.close()
+                exit(1)
 
         return (len(data), base, seqNum, outBuffer, connId, lastFromAddr, inSeq, inAck, synReceived, finReceived, inBuffer, nDupAcks, cwnd, endedAt)
             
@@ -299,6 +303,7 @@ def start():
         sys.exit(1)
     finally:
         sock.close()
+        exit(0)
     
     '''************************************************************************'''
     
