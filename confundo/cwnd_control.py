@@ -11,7 +11,7 @@ class CwndControl:
         self.cwnd = 1.0 * MTU
         self.ssthresh = INIT_SSTHRESH
 
-    def on_ack(self, ackedDataLen):
+    def on_ack(self, ackedDataLen = 0):
         if(self.cwnd < self.ssthresh):
             self.cwnd += MTU
         else:

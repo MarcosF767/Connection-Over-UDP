@@ -34,6 +34,7 @@ class Socket:
 
         self.base = 77
         self.seqNum = self.base
+        self.endedAt = 0
 
         self.inSeq = inSeq
         
@@ -51,6 +52,8 @@ class Socket:
 
         self.remote = None
         self.noClose = noClose
+        
+        self.cwnd = CwndControl()
 
     def __enter__(self):
         return self
@@ -68,41 +71,6 @@ class Socket:
 
         return self._connect(sockaddr)   #Redirects to _connect
 
-'''    def bind(self, endpoint):
-        if self.state != State.INVALID:
-            raise RuntimeError()
-
-        remote = socket.getaddrinfo(endpoint[0], endpoint[1], family=socket.AF_INET, type=socket.SOCK_DGRAM)
-        (family, type, proto, canonname, sockaddr) = remote[0]
-
-        self.sock.bind(sockaddr)
-        self.state = State.LISTEN
-
-    def listen(self, queue):
-        if self.state != State.LISTEN:
-            raise RuntimeError("Cannot listen")
-        pass
-
-    def accept(self):
-        if self.state != State.LISTEN:
-            raise RuntimeError("Cannot accept")
-
-        hadNewConnId = True
-        while True:
-            # just wait forever until a new connection arrives
-
-            if hadNewConnId:
-                self.connectionID += 1 # use it for counting incoming connections, no other uses really
-                hadNewConnId = False
-            pkt = self._recv()
-            if pkt and pkt.isSyn:
-                hadNewConnId = True
-                clientSock = Socket(connectionID = self.connectionID, synReceived=True, sock=self.sock, inSeq=77, noClose=True)
-                # at this point, syn was received, ack for syn was sent, now need to send our SYN and wait for ACK
-                clientSock._connect(self.lastFromAddr)
-                return clientSock
-'''
-
     def settimeout(self, timeout):   #Sets time out
         self.timeout = timeout
 
@@ -113,29 +81,28 @@ class Socket:
             self.sock.sendto(packet.encode(), self.remote)
         else:
             self.sock.sendto(packet.encode(), self.lastFromAddr)
-        print(format_line("SEND",  packet))
+        print(format_line("SEND",  packet, self.cwnd.cwnd, self.cwnd.ssthresh))
 
     def _recv(self):
         '''"Private" method to receive incoming packets'''
-
         try:
             (inPacket, self.lastFromAddr) = self.sock.recvfrom(1024)
         except socket.error as e:
+            self.cwnd.on_ack(0)
             return None
 
         ### TODO dispatch based on fromAddr... and it can only be done from the "parent" socket
 
         inPkt = Packet().decode(inPacket)
-        print(format_line("RECV", packet))
-
+        print(format_line("RECV", inPkt, self.cwnd.cwnd, self.cwnd.ssthresh))
         outPkt = None
         if inPkt.isSyn:
-            self.inSeq = inPkt.seqNum
-            if inPkt.connectionID != 0:
-                self.connectionID = inPkt.connectionID
+            self.inSeq = inPkt.seqNum + 1
+            if inPkt.connId != 0:
+                self.connectionID = inPkt.connId
             self.synReceived = True
 
-            outPkt = Packet(seqNum=self.seqNum, ackNum=self.inSeq, connectionID=self.connectionID, isAck=True)
+            outPkt = Packet(seqNum=self.seqNum, ackNum=self.inSeq, connId=self.connectionID, isAck=True)
 
         elif inPkt.isFin:
             if self.inSeq == inPkt.seqNum: # all previous packets has been received, so safe to advance
@@ -145,7 +112,7 @@ class Socket:
                 # don't advance, which means we will send a duplicate ACK
                 pass
 
-            outPkt = Packet(seqNum=self.seqNum, ackNum=self.inSeq, connectionID=self.connectionID, isAck=True)
+            outPkt = Packet(seqNum=self.seqNum, ackNum=self.inSeq, connId=self.connectionID, isAck=True)
 
         elif len(inPkt.payload) > 0:
             if not self.synReceived:
@@ -161,7 +128,7 @@ class Socket:
                 # don't advance, which means we will send a duplicate ACK
                 pass
 
-            outPkt = Packet(seqNum=self.seqNum, ackNum=self.inSeq, connectionID=self.connectionID, isAck=True)
+            outPkt = Packet(seqNum=self.seqNum, ackNum=self.inSeq, connId=self.connectionID, isAck=True)
 
         if outPkt:
             self._send(outPkt)
@@ -189,7 +156,7 @@ class Socket:
         self.expectFinAck()
 
     def sendSynPacket(self):
-        synPkt = Packet(seqNum=self.base, connectionID=self.connectionID, isSyn=True)
+        synPkt = Packet(seqNum=self.base, connId=self.connectionID, isSyn=True)
         self.seqNum = self.base + 1
         self._send(synPkt)
 
@@ -207,7 +174,7 @@ class Socket:
                 raise RuntimeError("timeout")
 
     def sendFinPacket(self):
-        synPkt = Packet(seqNum=self.seqNum, connectionID=self.connectionID, isFin=True)
+        synPkt = Packet(seqNum=self.seqNum, connId=self.connectionID, isFin=True)
         self.seqNum = self.seqNum + 1
         self._send(synPkt)
 
@@ -259,13 +226,18 @@ class Socket:
         startTime = time.time()
         while len(self.outBuffer) > 0:
             toSend = self.outBuffer[:MTU]
-            pkt = Packet(seqNum=self.base, connectionID=self.connectionID, payload=toSend)
-            self.seqNum = self.seqNum + 412 + 20
+            if((self.seqNum+len(toSend)) > 40000):
+                self.seqNum = 0
+                self.endedAt += base
+                self.base = 0
+            pkt = Packet(seqNum=self.base, connId=self.connectionID, payload=toSend)
+            if((self.base) == self.seqNum):
+                self.seqNum += len(toSend)
             self._send(pkt)
 
             pkt = self._recv()  # if within RTO we didn't receive packets, things will be retransmitted
             if pkt and pkt.isAck:
-                advanceAmount = pkt.inSeq - self.base
+                advanceAmount = pkt.ackNum - self.base - self.endedAt
                 if advanceAmount == 0:
                     self.nDupAcks += 1
                 else:
