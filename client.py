@@ -122,9 +122,11 @@ def start():
         return s
     
     def recv(lastFromAddr, connId, seqNum, inSeq, inAck, synReceived, finReceived, inBuffer):
+        now = time.time()
         try:
             (inPacket, lastFromAddr) = sock.recvfrom(1024)
         except socket.error as e:
+            cwnd.on_timeout()
             return (None, lastFromAddr, connId, seqNum, inSeq, inAck, synReceived, finReceived, inBuffer)
 
         inPkt = Packet().decode(inPacket)
@@ -191,7 +193,7 @@ def start():
                 
                 if((seqNum+len(toSend)) > 40000):
                     seqNum = 0
-                    endedAt = base
+                    endedAt += base
                     base = 0
                 pkt = Packet(seqNum=seqNum, connId=connId, payload=toSend)
                 if((base) == seqNum):
@@ -201,7 +203,7 @@ def start():
             (pkt, lastFromAddr, connId, seqNum, inSeq, inAck, synReceived, finReceived, inBuffer) = recv(lastFromAddr, connId, seqNum, inSeq, inAck, synReceived, finReceived, inBuffer)  
                     # if within RTO we didn't receive packets, things will be retransmitted
             if pkt and pkt.isAck:
-                advanceAmount = pkt.ackNum - base
+                advanceAmount = pkt.ackNum - base - endedAt
                 if advanceAmount == 0:
                     nDupAcks += 1
                 else:
