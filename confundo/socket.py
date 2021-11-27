@@ -28,6 +28,7 @@ class Socket:
 
     def __init__(self, connectionID=0, inSeq=None, synReceived=False, sock=socket.socket(socket.AF_INET, socket.SOCK_DGRAM), noClose=False):
         self.sock = sock
+        self.sock.settimeout(0.5)
         self.connectionID = connectionID
         self.timeout = 10
 
@@ -221,6 +222,7 @@ class Socket:
                 break
             if time.time() - startTime > GLOBAL_TIMEOUT:
                 return
+
 
     def recv(self, maxSize):
         startTime = time.time()

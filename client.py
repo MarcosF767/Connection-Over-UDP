@@ -192,22 +192,28 @@ def start():
 
         startTime = time.time()
         while len(outBuffer) > 0:
-            for pk in range(0,(math.floor(cwnd.cwnd/MTU))):
-                toSend = outBuffer[(pk*MTU):((pk+1)*MTU)]
-                
-                if((seqNum+len(toSend)) > 40000):
-                    seqNum = 0
-                    endedAt += base
-                    base = 0
+            pkt = None
+            toSend = None
+            if((seqNum+MTU) > 40000):
+                index = 40000 - seqNum
+                toSend = outBuffer[:index]
+                print(len(toSend))
+                pkt = Packet(seqNum=seqNum, connId=connId, payload=toSend)
+                seqNum = 0
+                endedAt += base
+                base = 0
+            else:
+                toSend = outBuffer[:MTU]
                 pkt = Packet(seqNum=seqNum, connId=connId, payload=toSend)
                 if((base) == seqNum):
                     seqNum += len(toSend)
-                send(pkt, remoteAddr, lastFromAddr)
+                
+            send(pkt, remoteAddr, lastFromAddr)
 
             (pkt, lastFromAddr, connId, seqNum, inSeq, inAck, synReceived, finReceived, inBuffer) = recv(lastFromAddr, connId, seqNum, inSeq, inAck, synReceived, finReceived, inBuffer)  
                     # if within RTO we didn't receive packets, things will be retransmitted
             if pkt and pkt.isAck:
-                advanceAmount = pkt.ackNum - base###########- endedAt
+                advanceAmount = pkt.ackNum - base - endedAt
                 if advanceAmount == 0:
                     nDupAcks += 1
                 else:
