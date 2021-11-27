@@ -207,7 +207,7 @@ def start():
             (pkt, lastFromAddr, connId, seqNum, inSeq, inAck, synReceived, finReceived, inBuffer) = recv(lastFromAddr, connId, seqNum, inSeq, inAck, synReceived, finReceived, inBuffer)  
                     # if within RTO we didn't receive packets, things will be retransmitted
             if pkt and pkt.isAck:
-                advanceAmount = pkt.ackNum - base################# - endedAt
+                advanceAmount = pkt.ackNum - base- endedAt
                 if advanceAmount == 0:
                     nDupAcks += 1
                 else:
