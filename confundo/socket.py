@@ -228,7 +228,7 @@ class Socket:
             toSend = self.outBuffer[:MTU]
             if((self.seqNum+len(toSend)) > 40000):
                 self.seqNum = 0
-                self.endedAt += base
+                self.endedAt += self.base
                 self.base = 0
             pkt = Packet(seqNum=self.base, connId=self.connectionID, payload=toSend)
             if((self.base) == self.seqNum):
