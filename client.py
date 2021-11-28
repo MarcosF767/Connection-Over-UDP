@@ -67,7 +67,7 @@ class CwndControl:
     
     
     
-    import argparse
+import argparse
 import os
 import socket
 import sys
