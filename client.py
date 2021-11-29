@@ -195,7 +195,7 @@ def start():
                 #index = 40000 - seqNum
                 toSend = outBuffer[:MTU]#index]
                 pkt = Packet(seqNum=seqNum, connId=connId, payload=toSend)
-                seqNum = seqNum + 412 - 40000
+                seqNum = seqNum + 412 - 40000 - 1
                 endedAt += base
                 base = seqNum
             else:
@@ -221,9 +221,7 @@ def start():
                 outBuffer = outBuffer[advanceAmount:]
                 base = seqNum
             if time.time() - startTime > GLOBAL_TIMEOUT:
-                raise RuntimeError("timeout")
-                sock.close()
-                exit(1)
+                sys.exit("timeout")
 
         return (len(data), base, seqNum, outBuffer, connId, lastFromAddr, inSeq, inAck, synReceived, finReceived, inBuffer, nDupAcks, cwnd, endedAt)
             
@@ -260,7 +258,7 @@ def start():
                 base = seqNum
                 break
             if time.time() - startTime > GLOBAL_TIMEOUT:
-                raise RuntimeError("timeout")
+                sys.exit("timeout")
 
         #Send files
         with open(FILE, "rb") as f:
@@ -306,9 +304,7 @@ def start():
         
         
     except:
-        sys.exit(1)
-        sys.stderr.write(f"ERROR: File transfer failed")
-        #sys.exit(1)
+        sys.exit("ERROR: File transfer failed")
     finally:
         sock.close()
         exit(0)
