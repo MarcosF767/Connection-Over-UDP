@@ -195,7 +195,7 @@ def start():
                 #index = 40000 - seqNum
                 toSend = outBuffer[:MTU]#index]
                 pkt = Packet(seqNum=seqNum, connId=connId, payload=toSend)
-                seqNum = seqNum + 412 - 40000
+                seqNum = seqNum + 411 - 40000
                 endedAt += base
                 base = seqNum
             else:
