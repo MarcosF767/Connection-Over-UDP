@@ -192,8 +192,8 @@ def start():
             pkt = None
             toSend = None
             if((seqNum+MTU) > 40000):
-                index = 40000 - seqNum
-                toSend = outBuffer[:index]
+                #index = 40000 - seqNum
+                toSend = outBuffer[:MTU]#index]
                 pkt = Packet(seqNum=seqNum, connId=connId, payload=toSend)
                 seqNum = 0
                 endedAt += base
